@@ -12,10 +12,10 @@
     "start": "2010-02-11",
     "end": "2026-08-14",
     "observations": 4152,
-    "cagr_percent": 40.41984401244996,
-    "max_drawdown_percent": -76.48985513102924,
-    "sharpe_no_risk_free": 0.9410093574401206,
-    "ending_multiple": 271.1283848356436,
+    "cagr_percent": 40.419842326692645,
+    "max_drawdown_percent": -76.48986128076054,
+    "sharpe_no_risk_free": 0.9410093025446583,
+    "ending_multiple": 271.12833111595955,
     "switch_count": 35
   }
 }
