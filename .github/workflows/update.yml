@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      send_status_email:
+        description: "Send today's operate / no-operate status email"
+        required: false
+        type: boolean
+        default: false
   schedule:
     # 22:30 UTC is after the US market close in both PST and PDT.
     - cron: "30 22 * * 1-5"
@@ -46,6 +51,7 @@ jobs:
           ALERT_FROM_EMAIL: ${{ secrets.ALERT_FROM_EMAIL }}
           ALERT_TO_EMAIL: ${{ secrets.ALERT_TO_EMAIL }}
           SEND_TEST_EMAIL: ${{ inputs.send_test_email || 'false' }}
+          SEND_STATUS_EMAIL: ${{ github.event_name == 'schedule' || inputs.send_status_email || false }}
         run: python src/run.py
       - name: Commit updated state and history
         run: |

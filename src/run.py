@@ -189,7 +189,7 @@ def deliver_email(subject: str, body: str) -> None:
 
 def send_email(signal: Signal, status: dict) -> None:
     to_tqqq = signal.action == "SWITCH_TO_TQQQ"
-    subject = "QQQ 回撤提醒：考虑换成 TQQQ" if to_tqqq else "QQQ 恢复前高：考虑换回 QQQ"
+    subject = "QQQ Alert：需要操作—QQQ 换成 TQQQ" if to_tqqq else "QQQ Alert：需要操作—TQQQ 换回 QQQ"
     action = "QQQ → TQQQ" if to_tqqq else "TQQQ → QQQ"
     body = f"""QQQ/TQQQ 换仓信号
 
@@ -215,6 +215,30 @@ QQQ 收盘价：${status['qqq_close']:.2f}
 这是一封手动测试邮件，不是新的换仓信号。
 """
     deliver_email("QQQ/TQQQ Alert：测试邮件成功", body)
+
+
+def send_status_email(status: dict) -> None:
+    holding = status["holding"]
+    if holding == "QQQ":
+        target_label = "换成 TQQQ 的触发价"
+        target = status["trigger_price"]
+    else:
+        target_label = "换回 QQQ 的目标前高"
+        target = status["recovery_price"]
+    assert target is not None
+    body = f"""QQQ/TQQQ 每日运行状态
+
+任务已正常完成：{status['as_of']}
+结论：今日无需操作，继续持有 {holding}。
+当前模型持仓：{holding}
+QQQ 复权收盘价：${status['qqq_close']:.2f}
+相对记录前高：{status['current_drawdown_percent']:.2f}%
+{target_label}：${target:.2f}
+
+出现新换仓信号时，邮件主题会明确显示“需要操作”。
+该邮件为规则提醒，不构成投资建议，也不会自动下单。
+"""
+    deliver_email(f"QQQ Alert：今日无需操作（继续持有 {holding}）", body)
 
 
 def build_dashboard(payload: dict) -> None:
@@ -265,6 +289,8 @@ def main() -> None:
         send_test_email(status)
     if latest_signal and email_enabled and (is_new or (not previous_state and send_initial)):
         send_email(latest_signal, status)
+    elif email_enabled and os.getenv("SEND_STATUS_EMAIL", "false").lower() == "true":
+        send_status_email(status)
 
     write_json(STATE_PATH, {
         "last_processed_date": dates[-1],
