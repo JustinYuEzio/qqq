@@ -25,7 +25,7 @@ Start-Process .\docs\index.html
 
 ## GitHub 设置
 
-1. 创建一个 **Private** 仓库并 push 本目录。
+1. 创建仓库并 push 本目录。GitHub Free 要使用 Pages 时，将仓库设为 **Public**。
 2. 打开仓库的 **Settings → Actions → General**，确认 Workflow permissions 为 `Read and write permissions`。
 3. 打开 **Settings → Secrets and variables → Actions**，加入下列 Repository secrets。
 
@@ -45,16 +45,19 @@ Gmail 需要先开启两步验证，再创建 App Password。所有密钥只能�
 4. 打开 **Actions → Update QQQ alert → Run workflow**，首次手动运行一次。
 5. 首次运行用于建立当前状态，默认不会把旧信号当成新信号发送。以后只有最新信号发生变化才发送邮件。
 
+## 公开网页
+
+打开 **Settings → Pages**，在 **Build and deployment → Source** 选择 `GitHub Actions`。随后手动运行一次 `Update QQQ alert` 工作流。成功后网页地址为：
+
+`https://justinyuezio.github.io/qqq/`
+
+网页内容和历史信号将公开，但 GitHub Secrets 不会包含在网页产物中。
+
 计划任务在周一至周五 `22:30 UTC` 运行，在美国冬令时和夏令时都晚于美股正常收盘。GitHub Actions 的计划执行可能延迟几分钟。
 
-## 私密访问说明
+## 可见性说明
 
-仓库设为 Private 后，代码、CSV 和 Actions 运行记录仅对获授权账号可见。不要直接开启普通公开 GitHub Pages；静态 Pages 不是可靠的单用户登录保护。
-
-查看仪表板有两种安全方式：
-
-- 登录 GitHub，下载或克隆私有仓库后打开 `docs/index.html`。
-- 后续把 `docs/` 部署到带身份验证的 Cloudflare Access、Vercel 或其他私有托管服务。
+当前方案发布公开网页。代码和历史数据不包含邮箱密码；SMTP 密码只保存在 GitHub Secrets，不会打包进 Pages。若以后需要私人网页，应关闭 Pages，并改用带身份验证的托管服务。
 
 ## 文件结构
 
