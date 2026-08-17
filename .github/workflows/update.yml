@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: false
+      recipient_email:
+        description: "Recipient email (leave blank to use ALERT_TO_EMAIL)"
+        required: false
+        type: string
+        default: ""
   schedule:
     # 22:30 UTC is after the US market close in both PST and PDT.
     - cron: "30 22 * * 1-5"
@@ -49,7 +54,7 @@ jobs:
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           ALERT_FROM_EMAIL: ${{ secrets.ALERT_FROM_EMAIL }}
-          ALERT_TO_EMAIL: ${{ secrets.ALERT_TO_EMAIL }}
+          ALERT_TO_EMAIL: ${{ inputs.recipient_email || secrets.ALERT_TO_EMAIL }}
           SEND_TEST_EMAIL: ${{ inputs.send_test_email || 'false' }}
           SEND_STATUS_EMAIL: ${{ github.event_name == 'schedule' || inputs.send_status_email || false }}
         run: python src/run.py
