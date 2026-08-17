@@ -1,0 +1,6 @@
+{
+  "drawdown_percent": 10.0,
+  "transaction_cost_percent": 0.1,
+  "history_start": "2010-02-11",
+  "dashboard_years": 10
+}

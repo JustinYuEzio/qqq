@@ -1,0 +1,44 @@
+name: Update QQQ alert
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 22:30 UTC is after the US market close in both PST and PDT.
+    - cron: "30 22 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: qqq-alert-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test strategy rules
+        run: python -m unittest discover -s tests -v
+      - name: Update prices, signals, dashboard, and email
+        env:
+          EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USE_STARTTLS: ${{ secrets.SMTP_USE_STARTTLS }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          ALERT_FROM_EMAIL: ${{ secrets.ALERT_FROM_EMAIL }}
+          ALERT_TO_EMAIL: ${{ secrets.ALERT_TO_EMAIL }}
+        run: python src/run.py
+      - name: Commit updated state and history
+        run: |
+          git config user.name "qqq-alert-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data docs
+          git diff --cached --quiet || git commit -m "Update QQQ alert data"
+          git push
