@@ -162,25 +162,11 @@ def write_signals(signals: list[Signal]) -> None:
             writer.writerow(asdict(signal))
 
 
-def send_email(signal: Signal, status: dict) -> None:
+def deliver_email(subject: str, body: str) -> None:
     required = ["SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "ALERT_TO_EMAIL"]
     missing = [name for name in required if not os.getenv(name)]
     if missing:
         raise RuntimeError("Missing email settings: " + ", ".join(missing))
-    to_tqqq = signal.action == "SWITCH_TO_TQQQ"
-    subject = "QQQ 回撤提醒：考虑换成 TQQQ" if to_tqqq else "QQQ 恢复前高：考虑换回 QQQ"
-    action = "QQQ → TQQQ" if to_tqqq else "TQQQ → QQQ"
-    body = f"""QQQ/TQQQ 换仓信号
-
-日期：{signal.date}
-建议动作：{action}
-QQQ 收盘价：${signal.qqq_close:.2f}
-记录前高：${signal.reference_high:.2f}
-回撤幅度：{signal.drawdown_percent:.2f}%
-当前模型状态：{status['holding']}
-
-该邮件为规则提醒，不构成投资建议，也不会自动下单。
-"""
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = os.getenv("ALERT_FROM_EMAIL", os.environ["SMTP_USERNAME"])
@@ -199,6 +185,36 @@ QQQ 收盘价：${signal.qqq_close:.2f}
         with smtplib.SMTP_SSL(host, port, context=ssl.create_default_context(), timeout=30) as smtp:
             smtp.login(username, password)
             smtp.send_message(message)
+
+
+def send_email(signal: Signal, status: dict) -> None:
+    to_tqqq = signal.action == "SWITCH_TO_TQQQ"
+    subject = "QQQ 回撤提醒：考虑换成 TQQQ" if to_tqqq else "QQQ 恢复前高：考虑换回 QQQ"
+    action = "QQQ → TQQQ" if to_tqqq else "TQQQ → QQQ"
+    body = f"""QQQ/TQQQ 换仓信号
+
+日期：{signal.date}
+建议动作：{action}
+QQQ 收盘价：${signal.qqq_close:.2f}
+记录前高：${signal.reference_high:.2f}
+回撤幅度：{signal.drawdown_percent:.2f}%
+当前模型状态：{status['holding']}
+
+该邮件为规则提醒，不构成投资建议，也不会自动下单。
+"""
+    deliver_email(subject, body)
+
+
+def send_test_email(status: dict) -> None:
+    body = f"""QQQ/TQQQ 邮件提醒测试成功。
+
+数据日期：{status['as_of']}
+当前模型状态：{status['holding']}
+QQQ 收盘价：${status['qqq_close']:.2f}
+
+这是一封手动测试邮件，不是新的换仓信号。
+"""
+    deliver_email("QQQ/TQQQ Alert：测试邮件成功", body)
 
 
 def build_dashboard(payload: dict) -> None:
@@ -243,6 +259,8 @@ def main() -> None:
     )
     send_initial = os.getenv("SEND_INITIAL_ALERT", "false").lower() == "true"
     email_enabled = os.getenv("EMAIL_ENABLED", "false").lower() == "true"
+    if email_enabled and os.getenv("SEND_TEST_EMAIL", "false").lower() == "true":
+        send_test_email(status)
     if latest_signal and email_enabled and (is_new or (not previous_state and send_initial)):
         send_email(latest_signal, status)
 

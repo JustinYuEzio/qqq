@@ -44,6 +44,7 @@ Gmail 需要先开启两步验证，再创建 App Password。所有密钥只能�
 
 4. 打开 **Actions → Update QQQ alert → Run workflow**，首次手动运行一次。
 5. 首次运行用于建立当前状态，默认不会把旧信号当成新信号发送。以后只有最新信号发生变化才发送邮件。
+6. 测试 Gmail 时，在 `Run workflow` 面板勾选 `Send a Gmail test alert` 后再运行；这只发送测试邮件，不会写入历史信号。
 
 ## 公开网页
 
