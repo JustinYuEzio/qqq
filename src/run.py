@@ -10,6 +10,7 @@ import os
 import smtplib
 import ssl
 import statistics
+import time
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, asdict
@@ -63,8 +64,19 @@ def fetch_yahoo(symbol: str, start: str) -> dict[str, float]:
     })
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?{params}"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 qqq-alert/1.0"})
-    with urllib.request.urlopen(req, timeout=30) as response:
-        payload = json.load(response)
+    last_error = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                payload = json.load(response)
+            break
+        except Exception as exc:
+            last_error = exc
+            if attempt == 2:
+                raise
+            time.sleep(1.5 * (attempt + 1))
+    else:
+        raise RuntimeError(f"Unable to fetch {symbol}: {last_error}")
     result = payload["chart"]["result"][0]
     timestamps = result["timestamp"]
     adjusted = result.get("indicators", {}).get("adjclose", [{}])[0].get("adjclose")
@@ -148,6 +160,99 @@ def replay(qqq: dict[str, float], tqqq: dict[str, float], drawdown: float, cost:
         "recovery_price": recovery,
     }
     return dates, signals, curve, metrics, status
+
+
+def pair_backtest(base: dict[str, float], leveraged: dict[str, float], threshold: float, cost: float) -> dict:
+    dates = sorted(set(base) & set(leveraged))
+    holding_leveraged = False
+    peak = base[dates[0]]
+    recovery = None
+    wealth = wealth_peak = 1.0
+    max_drawdown = 0.0
+    returns = []
+    switches = 0
+    for previous, current in zip(dates, dates[1:]):
+        asset = leveraged if holding_leveraged else base
+        daily_return = asset[current] / asset[previous] - 1.0
+        wealth *= 1.0 + daily_return
+        returns.append(daily_return)
+        wealth_peak = max(wealth_peak, wealth)
+        max_drawdown = min(max_drawdown, wealth / wealth_peak - 1.0)
+        if not holding_leveraged:
+            peak = max(peak, base[current])
+            if base[current] / peak - 1.0 <= -threshold + 1e-12:
+                holding_leveraged = True
+                recovery = peak
+                wealth *= 1.0 - cost
+                switches += 1
+        else:
+            assert recovery is not None
+            if base[current] >= recovery:
+                holding_leveraged = False
+                peak = base[current]
+                recovery = None
+                wealth *= 1.0 - cost
+                switches += 1
+    years = (datetime.fromisoformat(dates[-1]) - datetime.fromisoformat(dates[0])).days / 365.2425
+    mean = statistics.fmean(returns)
+    volatility = statistics.stdev(returns)
+    return {
+        "threshold_percent": threshold * 100,
+        "cagr_percent": (wealth ** (1 / years) - 1) * 100,
+        "max_drawdown_percent": max_drawdown * 100,
+        "sharpe_no_risk_free": mean / volatility * math.sqrt(252),
+        "ending_multiple": wealth,
+        "switch_count": switches,
+    }
+
+
+def buy_hold_metrics(prices: dict[str, float], dates: list[str]) -> dict:
+    wealth = wealth_peak = 1.0
+    max_drawdown = 0.0
+    returns = []
+    for previous, current in zip(dates, dates[1:]):
+        daily_return = prices[current] / prices[previous] - 1.0
+        wealth *= 1.0 + daily_return
+        returns.append(daily_return)
+        wealth_peak = max(wealth_peak, wealth)
+        max_drawdown = min(max_drawdown, wealth / wealth_peak - 1.0)
+    years = (datetime.fromisoformat(dates[-1]) - datetime.fromisoformat(dates[0])).days / 365.2425
+    return {"cagr_percent": (wealth ** (1 / years) - 1) * 100, "max_drawdown_percent": max_drawdown * 100}
+
+
+def evaluate_pairs(price_cache: dict[str, dict[str, float]], cost: float) -> list[dict]:
+    specs = [
+        ("SPY", "SSO", "2×", 15, [6, 8, 10, 12, 15], "不建议直接采用：2008后长时间持有杠杆令最大回撤超过80%，没有形成有效保护。", "高"),
+        ("SPY", "UPRO", "3×", 18, [8, 10, 12, 15, 18], "宽基中相对值得继续研究；15%–18%结果较稳定，但历史最大回撤仍超过60%。", "高"),
+        ("QQQ", "QLD", "2×", 7, [5, 7, 10, 12, 15], "7%–10%年化相近，但最大回撤约80%；它是温和杠杆，不是低风险策略。", "高"),
+        ("XLK", "ROM", "2×", 12, [7, 10, 12, 15, 18], "7%–15%结果相对平坦，12%是折中研究点；历史回撤仍接近80%。", "高"),
+        ("XLK", "TECL", "3×", 20, [10, 12, 15, 18, 20], "15%偏进取；20%牺牲部分收益但显著降低样本内最大回撤，更适合作为研究起点。", "高"),
+        ("SOXX", "USD", "2×", 25, [10, 15, 20, 25], "不建议照搬：所有测试阈值的最大回撤都超过85%，半导体周期会放大抄底风险。", "极高"),
+        ("SOXX", "SOXL", "3×", 30, [15, 20, 25, 30], "25%–30%在样本中明显优于浅回撤，但仍可能回撤约75%，仅适合极小仓位实验。", "极高"),
+    ]
+    results = []
+    for base_symbol, leveraged_symbol, leverage, recommended, thresholds, note, risk in specs:
+        base = price_cache[base_symbol]
+        leveraged = price_cache[leveraged_symbol]
+        dates = sorted(set(base) & set(leveraged))
+        tests = [pair_backtest(base, leveraged, value / 100, cost) for value in thresholds]
+        selected = next(item for item in tests if abs(item["threshold_percent"] - recommended) < 1e-9)
+        results.append({
+            "base": base_symbol,
+            "leveraged": leveraged_symbol,
+            "leverage": leverage,
+            "recommended_threshold_percent": recommended,
+            "risk": risk,
+            "note": note,
+            "start": dates[0],
+            "end": dates[-1],
+            "observations": len(dates),
+            "recommended": selected,
+            "threshold_tests": tests,
+            "base_buy_hold": buy_hold_metrics(base, dates),
+            "leveraged_buy_hold": buy_hold_metrics(leveraged, dates),
+        })
+    return results
 
 
 def write_signals(signals: list[Signal]) -> None:
@@ -254,8 +359,10 @@ def main() -> None:
     drawdown = float(config.get("drawdown_percent", 10.0)) / 100
     cost = float(config.get("transaction_cost_percent", 0.1)) / 100
     start = config.get("history_start", "2010-02-11")
-    qqq = fetch_yahoo("QQQ", start)
-    tqqq = fetch_yahoo("TQQQ", start)
+    symbols = ["QQQ", "TQQQ", "SPY", "SSO", "UPRO", "QLD", "XLK", "ROM", "TECL", "SOXX", "USD", "SOXL"]
+    price_cache = {symbol: fetch_yahoo(symbol, start) for symbol in symbols}
+    qqq = price_cache["QQQ"]
+    tqqq = price_cache["TQQQ"]
     dates, signals, curve, metrics, status = replay(qqq, tqqq, drawdown, cost)
     latest_signal = signals[-1] if signals else None
 
@@ -272,6 +379,7 @@ def main() -> None:
         "signals": [asdict(s) for s in signals[-30:]][::-1],
         "curve": curve,
         "prices": prices,
+        "pair_evaluations": evaluate_pairs(price_cache, cost),
     }
     build_dashboard(payload)
 
