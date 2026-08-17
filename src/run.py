@@ -237,15 +237,17 @@ def main() -> None:
 
     write_signals(signals)
     write_json(DATA / "latest.json", {"status": status, "metrics": metrics})
-    years = int(config.get("dashboard_years", 10))
-    cutoff_year = int(dates[-1][:4]) - years
-    dashboard_curve = [row for row in curve if int(row["date"][:4]) >= cutoff_year]
+    prices = [
+        {"date": date, "qqq": qqq[date], "tqqq": tqqq[date]}
+        for date in dates
+    ]
     payload = {
         "config": config,
         "status": status,
         "metrics": metrics,
         "signals": [asdict(s) for s in signals[-30:]][::-1],
-        "curve": dashboard_curve,
+        "curve": curve,
+        "prices": prices,
     }
     build_dashboard(payload)
 
