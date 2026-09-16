@@ -1,21 +1,21 @@
 {
   "status": {
-    "as_of": "2026-09-11",
+    "as_of": "2026-09-14",
     "holding": "TQQQ",
-    "qqq_close": 714.8800048828125,
+    "qqq_close": 709.1799926757812,
     "reference_high": 745.3408813476562,
-    "current_drawdown_percent": -4.0868382812663135,
+    "current_drawdown_percent": -4.8515906717061075,
     "trigger_price": null,
     "recovery_price": 745.3408813476562
   },
   "metrics": {
     "start": "2010-02-11",
-    "end": "2026-09-11",
-    "observations": 4171,
-    "cagr_percent": 39.535938838087525,
-    "max_drawdown_percent": -76.48985802792274,
-    "sharpe_no_risk_free": 0.9285951058538247,
-    "ending_multiple": 250.61429942725846,
+    "end": "2026-09-14",
+    "observations": 4172,
+    "cagr_percent": 39.30798829946775,
+    "max_drawdown_percent": -76.4898590968974,
+    "sharpe_no_risk_free": 0.9254597511799145,
+    "ending_multiple": 244.57672257288678,
     "switch_count": 35
   }
 }
